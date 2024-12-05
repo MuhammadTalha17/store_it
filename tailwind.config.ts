@@ -11,8 +11,8 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
+          "100": "#EA6365",
           DEFAULT: "#FA7275",
-          100: "#EA6365",
         },
         red: "#FF7474",
         error: "#b80000",
@@ -21,14 +21,14 @@ const config: Config = {
         pink: "#EEA8FD",
         orange: "#F9AB72",
         light: {
-          100: "#333F4E",
-          200: "#A3B2C7",
-          300: "#F2F5F9",
-          400: "#F2F4F8",
+          "100": "#333F4E",
+          "200": "#A3B2C7",
+          "300": "#F2F5F9",
+          "400": "#F2F4F8",
         },
         dark: {
-          100: "#04050C",
-          200: "#131524",
+          "100": "#04050C",
+          "200": "#131524",
         },
       },
       fontFamily: {
@@ -46,8 +46,12 @@ const config: Config = {
       },
       keyframes: {
         "caret-blink": {
-          "0%,70%,100%": { opacity: "1" },
-          "20%,50%": { opacity: "0" },
+          "0%,70%,100%": {
+            opacity: "1",
+          },
+          "20%,50%": {
+            opacity: "0",
+          },
         },
       },
       animation: {
