@@ -55,9 +55,13 @@ const AuthForm = ({ type }: { type: FormType }) => {
         email: values.email,
       });
 
+      console.log("Account created successfully:", user);
       setAccountId(user.accountId);
     } catch (error) {
-      setErrorMessage("Failed to create an account. Please try again.");
+      console.log("Error in onSubmit:", error);
+      setErrorMessage(
+        error.message || "Failed to create an account. Please try again."
+      );
     } finally {
       setIsLoading(false);
     }
