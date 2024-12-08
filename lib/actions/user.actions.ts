@@ -1,7 +1,8 @@
 import { Client, Databases, ID, Query, Account } from "node-appwrite";
-import { createAdminClient } from "../appwrite";
+import { createAdminClient, createSessionClient } from "../appwrite";
 import { appWriteConfig } from "../appwrite/config";
 import { parseStringify } from "../utils";
+import { avatarPlaceholderUrl } from "@/constants";
 
 const getUserByEmail = async (email: string) => {
   const { endpoint, projectId, secretKey } = await createAdminClient();
@@ -83,8 +84,7 @@ export const createAccount = async ({
         {
           fullName,
           email,
-          avatar:
-            "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSrCLHZeA--7ckaEIUPD-Z0XASJ5BxYQYLsdA&s",
+          avatar: avatarPlaceholderUrl,
           accountId,
         }
       );
@@ -96,4 +96,27 @@ export const createAccount = async ({
     console.log("Error in createAccount:", error);
     throw new Error("Failed to create an account. Please try again.");
   }
+};
+
+export const getCurrentUser = async () => {
+  const { endpoint, projectId, session } = await createSessionClient();
+
+  const client = new Client()
+    .setEndpoint(endpoint)
+    .setProject(projectId)
+    .setSession(session);
+
+  const account = new Account(client);
+  const databases = new Databases(client);
+
+  const result = await account.get();
+
+  const user = await databases.listDocuments(
+    appWriteConfig.databaseId,
+    appWriteConfig.usersCollectionId,
+    [Query.equal("accountId", result.$id)]
+  );
+  if (user.total <= 0) return null;
+
+  return parseStringify(user.documents[0]);
 };
