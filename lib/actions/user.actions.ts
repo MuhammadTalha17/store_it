@@ -1,18 +1,14 @@
+"use server";
 import { Client, Databases, ID, Query, Account } from "node-appwrite";
 import { createAdminClient, createSessionClient } from "../appwrite";
 import { appWriteConfig } from "../appwrite/config";
 import { parseStringify } from "../utils";
 import { avatarPlaceholderUrl } from "@/constants";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 
 const getUserByEmail = async (email: string) => {
-  const { endpoint, projectId, secretKey } = await createAdminClient();
-
-  const client = new Client()
-    .setEndpoint(endpoint)
-    .setProject(projectId)
-    .setKey(secretKey);
-
-  const databases = new Databases(client);
+  const { databases } = await createAdminClient();
 
   const result = await databases.listDocuments(
     appWriteConfig.databaseId,
@@ -24,23 +20,15 @@ const getUserByEmail = async (email: string) => {
 };
 
 const handleError = (error: unknown, message: string) => {
-  console.log(message, error);
+  console.log(error, message);
   throw error;
 };
 
 export const sendEmailOTP = async ({ email }: { email: string }) => {
-  const { endpoint, projectId, secretKey } = await createAdminClient();
-
-  const client = new Client()
-    .setEndpoint(endpoint)
-    .setProject(projectId)
-    .setKey(secretKey);
-
-  const account = new Account(client);
+  const { account } = await createAdminClient();
 
   try {
     const session = await account.createEmailToken(ID.unique(), email);
-    console.log("Email OTP sent, session:", session);
 
     return session.userId;
   } catch (error) {
@@ -55,68 +43,97 @@ export const createAccount = async ({
   fullName: string;
   email: string;
 }) => {
-  try {
-    console.log("Starting createAccount");
+  const existingUser = await getUserByEmail(email);
 
-    const existingUser = await getUserByEmail(email);
-    console.log("Existing user:", existingUser);
+  const accountId = await sendEmailOTP({ email });
+  if (!accountId) throw new Error("Failed to send an OTP");
 
-    const accountId = await sendEmailOTP({ email });
-    console.log("Account ID from OTP:", accountId);
-    if (!accountId) throw new Error("Failed to send an OTP");
+  if (!existingUser) {
+    const { databases } = await createAdminClient();
 
-    if (!existingUser) {
-      const { endpoint, projectId, secretKey } = await createAdminClient();
-      console.log("Admin client created");
-
-      const client = new Client()
-        .setEndpoint(endpoint)
-        .setProject(projectId)
-        .setKey(secretKey);
-
-      const databases = new Databases(client);
-      console.log("Databases instance created");
-
-      await databases.createDocument(
-        appWriteConfig.databaseId,
-        appWriteConfig.usersCollectionId,
-        ID.unique(),
-        {
-          fullName,
-          email,
-          avatar: avatarPlaceholderUrl,
-          accountId,
-        }
-      );
-      console.log("Document created in database");
-    }
-
-    return parseStringify({ accountId });
-  } catch (error) {
-    console.log("Error in createAccount:", error);
-    throw new Error("Failed to create an account. Please try again.");
+    await databases.createDocument(
+      appWriteConfig.databaseId,
+      appWriteConfig.usersCollectionId,
+      ID.unique(),
+      {
+        fullName,
+        email,
+        avatar: avatarPlaceholderUrl,
+        accountId,
+      }
+    );
   }
+
+  return parseStringify({ accountId });
 };
 
 export const getCurrentUser = async () => {
-  const { endpoint, projectId, session } = await createSessionClient();
+  try {
+    const { databases, account } = await createSessionClient();
 
-  const client = new Client()
-    .setEndpoint(endpoint)
-    .setProject(projectId)
-    .setSession(session);
+    const result = await account.get();
 
-  const account = new Account(client);
-  const databases = new Databases(client);
+    const user = await databases.listDocuments(
+      appWriteConfig.databaseId,
+      appWriteConfig.usersCollectionId,
+      [Query.equal("accountId", result.$id)]
+    );
 
-  const result = await account.get();
+    if (user.total <= 0) return null;
 
-  const user = await databases.listDocuments(
-    appWriteConfig.databaseId,
-    appWriteConfig.usersCollectionId,
-    [Query.equal("accountId", result.$id)]
-  );
-  if (user.total <= 0) return null;
+    return parseStringify(user.documents[0]);
+  } catch (error) {
+    console.log(error);
+  }
+};
 
-  return parseStringify(user.documents[0]);
+export const verifySecret = async ({
+  accountId,
+  password,
+}: {
+  accountId: string;
+  password: string;
+}) => {
+  try {
+    const { account } = await createAdminClient();
+
+    const session = await account.createSession(accountId, password);
+
+    (await cookies()).set("appwrite-session", session.secret, {
+      path: "/",
+      httpOnly: true,
+      sameSite: "strict",
+      secure: true,
+    });
+
+    return parseStringify({ sessionId: session.$id });
+  } catch (error) {
+    handleError(error, "Failed to verify OTP");
+  }
+};
+
+export const signOutUser = async () => {
+  const { account } = await createSessionClient();
+
+  try {
+    await account.deleteSession("current");
+    (await cookies()).delete("appwrite-session");
+  } catch (error) {
+    handleError(error, "Failed to sign out user");
+  } finally {
+    redirect("/sign-in");
+  }
+};
+
+export const signInUser = async ({ email }: { email: string }) => {
+  try {
+    const existingUser = await getUserByEmail(email);
+    if (existingUser) {
+      await sendEmailOTP({ email });
+      return parseStringify({ accountId: existingUser.accountId });
+    }
+    return parseStringify({ accountId: null, error: "User not found" });
+  } catch (error) {
+    handleError(error, "Failed to sign in user");
+  }
 };

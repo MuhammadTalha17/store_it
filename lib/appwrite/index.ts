@@ -1,6 +1,6 @@
 "use server";
 
-import { Account, Client, Databases } from "node-appwrite";
+import { Account, Client, Databases, Avatars, Storage } from "node-appwrite";
 import { appWriteConfig } from "./config";
 import { cookies } from "next/headers";
 
@@ -16,30 +16,33 @@ export const createSessionClient = async () => {
   client.setSession(session.value);
 
   return {
-    endpoint: appWriteConfig.endpointUrl,
-    projectId: appWriteConfig.projectId,
-    session: session.value,
+    get account() {
+      return new Account(client);
+    },
+    get databases() {
+      return new Databases(client);
+    },
   };
 };
 
 export const createAdminClient = async () => {
-  return {
-    endpoint: appWriteConfig.endpointUrl,
-    projectId: appWriteConfig.projectId,
-    secretKey: appWriteConfig.secretKey,
-  };
-};
-
-export const getSessionData = async () => {
-  const { endpoint, projectId, session } = await createSessionClient();
-
   const client = new Client()
-    .setEndpoint(endpoint)
-    .setProject(projectId)
-    .setSession(session);
+    .setEndpoint(appWriteConfig.endpointUrl)
+    .setProject(appWriteConfig.projectId)
+    .setKey(appWriteConfig.secretKey);
 
-  const account = new Account(client);
-  const databases = new Databases(client);
-
-  return { account, databases };
+  return {
+    get account() {
+      return new Account(client);
+    },
+    get databases() {
+      return new Databases(client);
+    },
+    get storage() {
+      return new Storage(client);
+    },
+    get avatars() {
+      return new Avatars(client);
+    },
+  };
 };
