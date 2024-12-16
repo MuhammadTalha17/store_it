@@ -108,7 +108,7 @@ const FileUploader = ({ ownerId, accountId, className }: Props) => {
                   width={24}
                   height={24}
                   alt="Remove"
-                  onClick={() => handleRemoveFile(e, file.name)}
+                  onClick={(e) => handleRemoveFile(e, file.name)}
                 />
               </li>
             );
